@@ -1,6 +1,7 @@
 import pandas as pd
 import random
 from time import time
+import matplotlib.pyplot as plt
 SIZE = 100
 #replace with your direcotry 
 df = pd.read_csv('transcript_metadata.csv')
@@ -85,6 +86,8 @@ def optimize_subset(dataset, target_distributions, weights =None,  swap_size=1, 
     start_time = time()
     num_iterations = 0
     curr_patience = patience
+    losses = []
+    lowest_losses = []
     while(True):
         #TODO: Patience is buggy
         new_subset = current_subset.copy()
@@ -94,10 +97,12 @@ def optimize_subset(dataset, target_distributions, weights =None,  swap_size=1, 
 
         new_stats = compute_stats(new_subset)
         new_loss = calculate_imbalance(new_stats, target_distributions, weights = weights)
+        losses.append(new_loss)
         #should I combine the two if statements? That would mean that the new set only gets saved if it is better by the percent_improvement. Leaving them separate can allow for a better set to be saved if it is only slightly worse
         if new_loss < current_loss:
             current_loss = new_loss
             current_subset = new_subset
+        lowest_losses.append(current_loss)
             
         if num_iterations > min_iterations:
             if new_loss < lowest_loss:
@@ -132,6 +137,15 @@ def optimize_subset(dataset, target_distributions, weights =None,  swap_size=1, 
             log_out += f", Lowest Loss: {lowest_loss:2f}, Patience: {curr_patience}"
         print(log_out, end='\r')
     print(f"Training done!")
+    
+    #plot losses
+    plt.plot(losses, label='Losses')
+    plt.plot(lowest_losses, label='Lowest Losses')
+    plt.legend()
+    plt.xlabel('Iterations')
+    plt.ylabel('Loss')
+    plt.title('Losses over Iterations')
+    plt.savefig('losses.png')
     return current_subset
 
 
