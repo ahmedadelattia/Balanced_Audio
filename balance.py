@@ -84,7 +84,9 @@ def optimize_subset(dataset, target_distributions, weights =None,  swap_size=1, 
     lowest_loss = current_loss
     start_time = time()
     num_iterations = 0
+    curr_patience = patience
     while(True):
+        #TODO: Patience is buggy
         new_subset = current_subset.copy()
         to_remove = new_subset.sample(n=swap_size)
         to_add = dataset.loc[~dataset.index.isin(new_subset.index)].sample(n=swap_size)
@@ -100,35 +102,35 @@ def optimize_subset(dataset, target_distributions, weights =None,  swap_size=1, 
         if num_iterations > min_iterations:
             if new_loss < lowest_loss:
                 lowest_loss = new_loss
-                patience = 2000
+                curr_patience = patience
             else:
-                patience -= 1
+                curr_patience -= 1
                 
-            if patience <= 0:
+            if curr_patience <= 0:
                 print()
                 print(f"Patience ran out, lowest loss = {lowest_loss}")
                 break
         num_iterations += 1
-        if num_iterations % 100 == 0:
-            curr_time_elapsed = time() - start_time
-            time_per_iteration = curr_time_elapsed/num_iterations
-            iteration_per_second = 1/time_per_iteration
+        # if num_iterations % 100 == 0:
+        curr_time_elapsed = time() - start_time
+        time_per_iteration = curr_time_elapsed/num_iterations
+        iteration_per_second = 1/time_per_iteration
 
-            if curr_time_elapsed < 60:
-                log_out = f"Time Elapsed: {curr_time_elapsed:.2f} seconds"
-            elif curr_time_elapsed < 3600:
-                log_out = f"Time Elapsed: {int(curr_time_elapsed/60)}:{int(curr_time_elapsed%60):02d} minutes"
-            else:
-                log_out = f"Time Elapsed: {int(curr_time_elapsed/3600)}:{int((curr_time_elapsed%3600)/60):02d}:{int(curr_time_elapsed%60):02d} hours"
-            log_out += f", Iterations: {num_iterations}"
-            if time_per_iteration > 1:
-                log_out += f", Time per Iteration: {time_per_iteration:.2f} seconds"
-            else:
-                log_out += f", Iterations per Second: {iteration_per_second:.2f}"
-            log_out += f" Current Loss: {current_loss:.2f}"
-            if num_iterations > min_iterations:
-                log_out += f", Lowest Loss: {lowest_loss:2f}, Patience: {patience}"
-            print(log_out, end='\r')
+        if curr_time_elapsed < 60:
+            log_out = f"Time Elapsed: {curr_time_elapsed:.2f} seconds"
+        elif curr_time_elapsed < 3600:
+            log_out = f"Time Elapsed: {int(curr_time_elapsed/60)}:{int(curr_time_elapsed%60):02d} minutes"
+        else:
+            log_out = f"Time Elapsed: {int(curr_time_elapsed/3600)}:{int((curr_time_elapsed%3600)/60):02d}:{int(curr_time_elapsed%60):02d} hours"
+        log_out += f", Iterations: {num_iterations}"
+        if time_per_iteration > 1:
+            log_out += f", Time per Iteration: {time_per_iteration:.2f} seconds"
+        else:
+            log_out += f", Iterations per Second: {iteration_per_second:.2f}"
+        log_out += f", Current Loss: {current_loss:.2f}"
+        if num_iterations > min_iterations:
+            log_out += f", Lowest Loss: {lowest_loss:2f}, Patience: {curr_patience}"
+        print(log_out, end='\r')
     print(f"Training done!")
     return current_subset
 
