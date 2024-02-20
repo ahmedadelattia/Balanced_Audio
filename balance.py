@@ -1,6 +1,6 @@
 import pandas as pd
 import random
-from tqdm import tqdm, trange
+from time import time
 SIZE = 100
 #replace with your direcotry 
 df = pd.read_csv('transcript_metadata.csv')
@@ -65,12 +65,14 @@ def calculate_imbalance(current_stats, target_distributions):
         
     return imbalance
 
-def optimize_subset(dataset, target_distributions, iterations=150000, swap_size=1, size=100):
+def optimize_subset(dataset, target_distributions, swap_size=1, size=100, min_iterations = 100000, patience = 20000):
     current_subset = initialize_subset(dataset, size = size)
     current_loss = calculate_imbalance(compute_stats(current_subset), target_distributions)
-    pbar = trange(iterations)
-    #TODO: Remove iterations and use a stopping criterion
-    for _ in pbar:
+    
+    lowest_loss = current_loss
+    start_time = time()
+    num_iterations = 0
+    while(True):
         new_subset = current_subset.copy()
         to_remove = new_subset.sample(n=swap_size)
         to_add = dataset.loc[~dataset.index.isin(new_subset.index)].sample(n=swap_size)
@@ -78,13 +80,43 @@ def optimize_subset(dataset, target_distributions, iterations=150000, swap_size=
 
         new_stats = compute_stats(new_subset)
         new_loss = calculate_imbalance(new_stats, target_distributions)
-        
+        #should I combine the two if statements? That would mean that the new set only gets saved if it is better by the percent_improvement. Leaving them separate can allow for a better set to be saved if it is only slightly worse
         if new_loss < current_loss:
-            # print(f'loss = {calculate_imbalance(current_stats, target_distributions)}')
             current_loss = new_loss
             current_subset = new_subset
-        pbar.set_description(f'loss = {current_loss:.2f}')
-    pbar.close()
+            
+        if num_iterations > min_iterations:
+            if new_loss < lowest_loss:
+                lowest_loss = new_loss
+                patience = 2000
+            else:
+                patience -= 1
+                
+            if patience <= 0:
+                print()
+                print(f"Patience ran out, lowest loss = {lowest_loss}")
+                break
+        num_iterations += 1
+        if num_iterations % 100 == 0:
+            curr_time_elapsed = time() - start_time
+            time_per_iteration = curr_time_elapsed/num_iterations
+            iteration_per_second = 1/time_per_iteration
+
+            if curr_time_elapsed < 60:
+                log_out = f"Time Elapsed: {curr_time_elapsed:.2f} seconds"
+            elif curr_time_elapsed < 3600:
+                log_out = f"Time Elapsed: {int(curr_time_elapsed/60)}:{int(curr_time_elapsed%60)} minutes"
+            else:
+                log_out = f"Time Elapsed: {int(curr_time_elapsed/3600)}:{int((curr_time_elapsed%3600)/60)}:{int(curr_time_elapsed%60)} hours"
+            log_out += f", Iterations: {num_iterations}"
+            if time_per_iteration > 1:
+                log_out += f", Iterations/Second: {iteration_per_second:.2f}"
+            else:
+                log_out += f", Seconds/Iteration: {time_per_iteration:.2f}"
+            log_out += f"Current Loss: {current_loss:.2f}"
+            if num_iterations > min_iterations:
+                log_out += f", Lowest Loss: {lowest_loss}, Patience: {patience}"
+            print(log_out, end='\r')
     print(f"Training done!")
     return current_subset
 
