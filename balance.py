@@ -56,18 +56,30 @@ with open('stats.txt', 'w') as f:
 def initialize_subset(dataset, size=100):
     return dataset.sample(n=size)
 
-def calculate_imbalance(current_stats, target_distributions):
-    imbalance = 0
+def calculate_imbalance(current_stats, target_distributions, weights = None):
     #TODO: imbalance as a dict to allow for weighted sum of imbalances
+    imbalance_dict = {}
+    
     for key in target_distributions:
+        imbalance_dict[key] = {}
         for subkey in target_distributions[key]:
-            imbalance += abs(current_stats[key][subkey] - target_distributions[key][subkey])
+            imbalance_dict[key][subkey] = abs(current_stats[key][subkey] - target_distributions[key][subkey])
+    if weights:
+        
+        for key in imbalance_dict:
+            for subkey in imbalance_dict[key]:
+                #if the key is not in the weights dict, it will be ignored (i.e. weight = 1)
+                if key in weights:
+                    if subkey in weights[key]:
+                        imbalance_dict[key][subkey] *= weights[key][subkey]       
+                
+    imbalance = sum([sum(imbalance_dict[key].values()) for key in imbalance_dict])
         
     return imbalance
 
-def optimize_subset(dataset, target_distributions, swap_size=1, size=100, min_iterations = 100000, patience = 20000):
+def optimize_subset(dataset, target_distributions, weights =None,  swap_size=1, size=100, min_iterations = 100000, patience = 20000):
     current_subset = initialize_subset(dataset, size = size)
-    current_loss = calculate_imbalance(compute_stats(current_subset), target_distributions)
+    current_loss = calculate_imbalance(compute_stats(current_subset), target_distributions, weights = weights)
     
     lowest_loss = current_loss
     start_time = time()
@@ -79,7 +91,7 @@ def optimize_subset(dataset, target_distributions, swap_size=1, size=100, min_it
         new_subset = pd.concat([new_subset.drop(to_remove.index), to_add])
 
         new_stats = compute_stats(new_subset)
-        new_loss = calculate_imbalance(new_stats, target_distributions)
+        new_loss = calculate_imbalance(new_stats, target_distributions, weights = weights)
         #should I combine the two if statements? That would mean that the new set only gets saved if it is better by the percent_improvement. Leaving them separate can allow for a better set to be saved if it is only slightly worse
         if new_loss < current_loss:
             current_loss = new_loss
@@ -105,17 +117,17 @@ def optimize_subset(dataset, target_distributions, swap_size=1, size=100, min_it
             if curr_time_elapsed < 60:
                 log_out = f"Time Elapsed: {curr_time_elapsed:.2f} seconds"
             elif curr_time_elapsed < 3600:
-                log_out = f"Time Elapsed: {int(curr_time_elapsed/60)}:{int(curr_time_elapsed%60)} minutes"
+                log_out = f"Time Elapsed: {int(curr_time_elapsed/60)}:{int(curr_time_elapsed%60):02d} minutes"
             else:
-                log_out = f"Time Elapsed: {int(curr_time_elapsed/3600)}:{int((curr_time_elapsed%3600)/60)}:{int(curr_time_elapsed%60)} hours"
+                log_out = f"Time Elapsed: {int(curr_time_elapsed/3600)}:{int((curr_time_elapsed%3600)/60):02d}:{int(curr_time_elapsed%60):02d} hours"
             log_out += f", Iterations: {num_iterations}"
             if time_per_iteration > 1:
-                log_out += f", Iterations/Second: {iteration_per_second:.2f}"
+                log_out += f", Time per Iteration: {time_per_iteration:.2f} seconds"
             else:
-                log_out += f", Seconds/Iteration: {time_per_iteration:.2f}"
-            log_out += f"Current Loss: {current_loss:.2f}"
+                log_out += f", Iterations per Second: {iteration_per_second:.2f}"
+            log_out += f" Current Loss: {current_loss:.2f}"
             if num_iterations > min_iterations:
-                log_out += f", Lowest Loss: {lowest_loss}, Patience: {patience}"
+                log_out += f", Lowest Loss: {lowest_loss:2f}, Patience: {patience}"
             print(log_out, end='\r')
     print(f"Training done!")
     return current_subset
@@ -136,7 +148,10 @@ for key in target_distributions:
 print(f"Target Distributions: {target_distributions}")
 with open('stats.txt', 'a') as f:
     print(f"Target Distributions: {target_distributions}", file=f)
-    
+
+weights = {"S_Race": {'AFAM': 2, 'ASIAN': 2, "HISP": 2, 'WHITE': 2, "Others": 2},
+           "T_Race": {'T_AFAM': 2, 'T_ASIAN': 2, 'T_HISP': 2, 'T_WHITE': 2,'T_Other': 2},
+        }
 balanced_subset = optimize_subset(df, target_distributions, size = SIZE)
 final_stats = compute_stats(balanced_subset)
 print(f"Final Stats: {final_stats}")
