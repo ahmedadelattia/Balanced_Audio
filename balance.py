@@ -2,13 +2,18 @@ import pandas as pd
 import random
 from time import time
 import matplotlib.pyplot as plt
-SIZE = 100
+SIZE = 11
 #replace with your direcotry 
 df = pd.read_csv('transcript_metadata.csv')
 
 # Display the first 5 rows
 print(df.head())
 
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",
+
+})
 def compute_stats(dataset):
     #TODO: Come up with a simplified logic to combine attibutes
     #ex add an arguments attr_to_combine
@@ -78,7 +83,7 @@ def calculate_imbalance(current_stats, target_distributions, weights = None):
         
     return imbalance
 
-def optimize_subset(dataset, target_distributions, weights =None,  swap_size=1, size=100, min_iterations = 100000, patience = 20000):
+def optimize_subset(dataset, target_distributions, weights =None,  swap_size=1, size=100, min_iterations = 50000, patience = 0):
     current_subset = initialize_subset(dataset, size = size)
     current_loss = calculate_imbalance(compute_stats(current_subset), target_distributions, weights = weights)
     
@@ -86,9 +91,9 @@ def optimize_subset(dataset, target_distributions, weights =None,  swap_size=1, 
     start_time = time()
     num_iterations = 0
     curr_patience = patience
-    losses = []
-    lowest_losses = []
-    while(True):
+    losses = [current_loss]
+    lowest_losses = [lowest_loss]
+    for i in range(min_iterations):
         #TODO: Patience is buggy
         new_subset = current_subset.copy()
         to_remove = new_subset.sample(n=swap_size)
@@ -102,19 +107,20 @@ def optimize_subset(dataset, target_distributions, weights =None,  swap_size=1, 
         if new_loss < current_loss:
             current_loss = new_loss
             current_subset = new_subset
-        lowest_losses.append(current_loss)
             
         if num_iterations > min_iterations:
             if new_loss < lowest_loss:
                 lowest_loss = new_loss
-                curr_patience = patience
-            else:
-                curr_patience -= 1
+        lowest_losses.append(current_loss)
+
+            #     curr_patience = patience
+            # else:
+            #     curr_patience -= 1
                 
-            if curr_patience <= 0:
-                print()
-                print(f"Patience ran out, lowest loss = {lowest_loss}")
-                break
+            # if curr_patience <= 0:
+            #     print()
+            #     print(f"Patience ran out, lowest loss = {lowest_loss}")
+            #     break
         num_iterations += 1
         # if num_iterations % 100 == 0:
         curr_time_elapsed = time() - start_time
@@ -132,25 +138,28 @@ def optimize_subset(dataset, target_distributions, weights =None,  swap_size=1, 
             log_out += f", Time per Iteration: {time_per_iteration:.2f} seconds"
         else:
             log_out += f", Iterations per Second: {iteration_per_second:.2f}"
-        log_out += f", Current Loss: {current_loss:.2f}"
+        log_out += f", Current Loss: {new_loss:.2f}"
         if num_iterations > min_iterations:
             log_out += f", Lowest Loss: {lowest_loss:2f}, Patience: {curr_patience}"
         print(log_out, end='\r')
     print(f"Training done!")
     
-    #plot losses
-    plt.plot(losses, label='Losses')
-    plt.plot(lowest_losses, label='Lowest Losses')
-    plt.legend()
-    plt.xlabel('Iterations')
-    plt.ylabel('Loss')
-    plt.title('Losses over Iterations')
-    plt.savefig('losses.png')
+    plt.figure(figsize=(10, 6))
+    plt.plot(range(len(losses)), losses, label='Losses', color='skyblue')
+    plt.plot(range(len(losses)), lowest_losses, label='Lowest Losses', color='orange')
+    plt.xlabel(r'\textit{Iterations}', fontsize=16)
+    # plt.ylabel('$\mathcal{L}_\text{Imbalance}$', fontsize=12)
+    plt.ylabel(r'$\mathcal{L}_{Imbalance}$', fontsize=16)
+    # plt.title('Losses over Iterations', fontsize=16, fontweight='bold')
+    plt.legend(fontsize=16)
+    # plt.grid(visible=True, linestyle='--', linewidth=0.5)
+    plt.tight_layout()
+    plt.savefig('losses_test.png')
     return current_subset
 
 
 target_distributions = {
-    'T_Gender': {'T_Male': 0.5, 'T_Female': 0.5},
+    'T_Gender': {'T_Male':1, 'T_Female': 0.5},
     'T_Race': {'T_AFAM': 0.25, 'T_ASIAN': 0.25, 'T_HISP': 0.25, 'T_WHITE': 0.25,'T_Other': 0},
     'S_Eng_Prof': {'1': 0.5, '0': 0.5},
     'S_Race': {'AFAM': 0.25, 'ASIAN': 0.25, "HISP": 0.25, 'WHITE': 0.25, "Others": 0},
